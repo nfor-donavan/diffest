@@ -1,0 +1,42 @@
+name: Generate Changelog with Diffest
+
+# Runs whenever a new tag is pushed (i.e. you cut a release).
+# NOTE: this is a starting point, not wired up to a hosted Diffest backend yet —
+# see the comments below for what's still needed before this actually runs.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need full history so 'since last tag' works
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+
+      # TODO before this step works: deploy the Diffest backend somewhere
+      # persistent (Render, same as your other projects) and put its URL
+      # in a repo secret called DIFFEST_API_URL.
+      - name: Call Diffest
+        id: diffest
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ secrets.DIFFEST_API_URL }}/api/generate" \
+            -H "Content-Type: application/json" \
+            -d "{\"repo\": \"${{ github.repository }}\", \"since\": \"${{ steps.prev_tag.outputs.prev_tag }}\", \"tone\": \"release\"}")
+          echo "$RESPONSE" | jq -r '.changelog' > CHANGELOG_ENTRY.md
+          cat CHANGELOG_ENTRY.md
+
+      - name: Create GitHub Release with generated notes
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: CHANGELOG_ENTRY.md
+          draft: true # leaves it as a draft so you can review before publishing
