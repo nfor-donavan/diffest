@@ -7,7 +7,15 @@ const GEMINI_URL = (key) =>
 
 // Very rough heuristic for "is this commit message actually useful,
 // or do we need to fall back to reading the diff?"
-const USELESS_MESSAGE_PATTERNS = [/^wip$/i, /^fix$/i, /^update$/i, /^stuff$/i, /^\.+$/, /^minor$/i, /^tmp$/i];
+const USELESS_MESSAGE_PATTERNS = [
+  /^wip$/i,
+  /^fix$/i,
+  /^update$/i,
+  /^stuff$/i,
+  /^\.+$/,
+  /^minor$/i,
+  /^tmp$/i,
+];
 
 export function isUselessMessage(message) {
   const firstLine = message.split("\n")[0].trim();
@@ -23,14 +31,19 @@ export function isUselessMessage(message) {
  */
 export async function summarizeChangelog(commits, { tone = "technical" } = {}) {
   if (!process.env.GEMINI_API_KEY) {
-    throw new Error("Missing GEMINI_API_KEY. Get a free key at https://aistudio.google.com/apikey and add it to backend/.env");
+    throw new Error(
+      "Missing GEMINI_API_KEY. Get a free key at https://aistudio.google.com/apikey and add it to backend/.env",
+    );
   }
 
   const commitBlocks = commits
     .map((c, i) => {
       const diffSummary = (c.files || [])
         .slice(0, 8) // cap to keep prompt size sane
-        .map((f) => `  - ${f.status} ${f.filename} (+${f.additions}/-${f.deletions})${f.patch ? `\n    patch:\n${f.patch.slice(0, 600)}` : ""}`)
+        .map(
+          (f) =>
+            `  - ${f.status} ${f.filename} (+${f.additions}/-${f.deletions})${f.patch ? `\n    patch:\n${f.patch.slice(0, 600)}` : ""}`,
+        )
         .join("\n");
       return `Commit ${i + 1} (${c.sha?.slice(0, 7) || "n/a"}):\nmessage: ${c.message}\nfiles:\n${diffSummary || "  (no file data)"}`;
     })
@@ -46,10 +59,12 @@ export async function summarizeChangelog(commits, { tone = "technical" } = {}) {
 ${toneInstruction}
 
 Group entries under these headings, omitting any that are empty:
-- ### Breaking Changes
-- ### Features
-- ### Fixes
-- ### Other
+- ### Breaking Changes — removes or changes existing behavior/API in a way that could break callers.
+- ### Features — adds new capability: new behavior, new prop/option/API, support for something that didn't work before (even if scoped to one platform, e.g. "iOS: honor X" still counts if X wasn't honored before), or a commit message starting with "feat".
+- ### Fixes — corrects broken/incorrect existing behavior back to what it was supposed to do, with no new capability added.
+- ### Other — refactors, internal tooling, tests, docs, chores, and anything with no user-visible behavior change at all.
+
+When a commit could plausibly fit either Features or Other, prefer Features if it changes what the software does or supports for any user, even if the change is small or platform-specific. Reserve Other for changes with no visible behavior difference.
 
 Output only the changelog markdown, nothing else.
 
@@ -71,6 +86,7 @@ ${commitBlocks}`;
   }
 
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+  const text =
+    data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
   return text;
 }
