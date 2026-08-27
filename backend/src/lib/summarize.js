@@ -60,11 +60,13 @@ ${toneInstruction}
 
 Group entries under these headings, omitting any that are empty:
 - ### Breaking Changes — removes or changes existing behavior/API in a way that could break callers.
-- ### Features — adds new capability: new behavior, new prop/option/API, support for something that didn't work before (even if scoped to one platform, e.g. "iOS: honor X" still counts if X wasn't honored before), or a commit message starting with "feat".
+- ### Features — adds new capability: new behavior, new prop/option/API, support for something that didn't work before (even if scoped to one platform).
 - ### Fixes — corrects broken/incorrect existing behavior back to what it was supposed to do, with no new capability added.
 - ### Other — refactors, internal tooling, tests, docs, chores, and anything with no user-visible behavior change at all.
 
-When a commit could plausibly fit either Features or Other, prefer Features if it changes what the software does or supports for any user, even if the change is small or platform-specific. Reserve Other for changes with no visible behavior difference.
+HARD RULE, applied before any other judgment: if a commit's message begins with "feat" or "feature" (case-insensitive, with or without a scope like "feat(ios):"), it goes under Features. Do not reclassify it based on your own reading of the diff — the author already told you what kind of change this is. This rule overrides everything else in this list.
+
+For commits without a "feat"/"fix" prefix, use the diff to decide between the four categories above. When genuinely ambiguous, prefer Features over Other if the change affects what the software does or supports for any user, however small.
 
 Output only the changelog markdown, nothing else.
 
