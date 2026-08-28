@@ -1,7 +1,7 @@
 // Uses Google's Gemini API (free tier available at aistudio.google.com/apikey).
 // No SDK needed — just a plain fetch call.
 
-const GEMINI_MODEL = "gemini-3.6-flash"; // current stable Flash model (GA July 2026)
+const GEMINI_MODEL = "gemini-3.5-flash-lite"; // current stable Flash model (GA July 2026)
 const GEMINI_URL = (key) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
 
