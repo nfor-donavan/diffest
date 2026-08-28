@@ -9,15 +9,7 @@ const CATEGORIES = ["Breaking Changes", "Features", "Fixes", "Other"];
 
 // Very rough heuristic for "is this commit message actually useful,
 // or do we need to fall back to reading the diff?"
-const USELESS_MESSAGE_PATTERNS = [
-  /^wip$/i,
-  /^fix$/i,
-  /^update$/i,
-  /^stuff$/i,
-  /^\.+$/,
-  /^minor$/i,
-  /^tmp$/i,
-];
+const USELESS_MESSAGE_PATTERNS = [/^wip$/i, /^fix$/i, /^update$/i, /^stuff$/i, /^\.+$/, /^minor$/i, /^tmp$/i];
 
 export function isUselessMessage(message) {
   const firstLine = message.split("\n")[0].trim();
@@ -46,10 +38,7 @@ function detectCategoryFromPrefix(text) {
 }
 
 function stripJsonFences(text) {
-  return text
-    .replace(/```json\s*/gi, "")
-    .replace(/```\s*/g, "")
-    .trim();
+  return text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
 }
 
 /**
@@ -61,32 +50,22 @@ function stripJsonFences(text) {
  * often more reliable than the underlying commit message(s), especially
  * after squash-merges where the commit message gets auto-generated.
  */
-export async function summarizeChangelog(
-  commits,
-  { tone = "technical", prTitle = "" } = {},
-) {
+export async function summarizeChangelog(commits, { tone = "technical", prTitle = "" } = {}) {
   if (!process.env.GEMINI_API_KEY) {
-    throw new Error(
-      "Missing GEMINI_API_KEY. Get a free key at https://aistudio.google.com/apikey and add it to backend/.env",
-    );
+    throw new Error("Missing GEMINI_API_KEY. Get a free key at https://aistudio.google.com/apikey and add it to backend/.env");
   }
 
   // Decide categories in code wherever possible. A PR title's prefix applies to
   // every commit in that PR (it's one logical change); otherwise each commit is
   // checked on its own message.
   const prTitleCategory = detectCategoryFromPrefix(prTitle);
-  const knownCategories = commits.map(
-    (c) => prTitleCategory || detectCategoryFromPrefix(c.message),
-  );
+  const knownCategories = commits.map((c) => prTitleCategory || detectCategoryFromPrefix(c.message));
 
   const commitBlocks = commits
     .map((c, i) => {
       const diffSummary = (c.files || [])
         .slice(0, 8) // cap to keep prompt size sane
-        .map(
-          (f) =>
-            `  - ${f.status} ${f.filename} (+${f.additions}/-${f.deletions})${f.patch ? `\n    patch:\n${f.patch.slice(0, 600)}` : ""}`,
-        )
+        .map((f) => `  - ${f.status} ${f.filename} (+${f.additions}/-${f.deletions})${f.patch ? `\n    patch:\n${f.patch.slice(0, 600)}` : ""}`)
         .join("\n");
       const categoryNote = knownCategories[i]
         ? `\ncategory (already decided, do not change): ${knownCategories[i]}`
@@ -95,9 +74,7 @@ export async function summarizeChangelog(
     })
     .join("\n\n");
 
-  const prTitleBlock = prTitle
-    ? `\nThis is all one PR. PR title: "${prTitle}"\n`
-    : "";
+  const prTitleBlock = prTitle ? `\nThis is all one PR. PR title: "${prTitle}"\n` : "";
 
   const toneInstruction =
     tone === "release"
@@ -126,10 +103,7 @@ ${commitBlocks}`;
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        maxOutputTokens: 1500,
-        responseMimeType: "application/json",
-      },
+      generationConfig: { maxOutputTokens: 1500, responseMimeType: "application/json" },
     }),
   });
 
@@ -139,8 +113,7 @@ ${commitBlocks}`;
   }
 
   const data = await res.json();
-  const rawText =
-    data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "[]";
+  const rawText = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "[]";
 
   let entries;
   try {
@@ -152,22 +125,15 @@ ${commitBlocks}`;
   // Group into the four fixed headings, overriding with our code-decided
   // category wherever we had one (belt and suspenders — the model was told
   // not to change it, but this makes it impossible for it to slip through).
-  const grouped = {
-    "Breaking Changes": [],
-    Features: [],
-    Fixes: [],
-    Other: [],
-  };
+  const grouped = { "Breaking Changes": [], Features: [], Fixes: [], Other: [] };
   for (const entry of entries) {
     const idx = entry.index;
-    const category =
-      knownCategories[idx] ||
-      (CATEGORIES.includes(entry.category) ? entry.category : "Other");
+    const category = knownCategories[idx] || (CATEGORIES.includes(entry.category) ? entry.category : "Other");
     if (grouped[category] && entry.bullet) grouped[category].push(entry.bullet);
   }
 
   const sections = CATEGORIES.filter((cat) => grouped[cat].length > 0).map(
-    (cat) => `### ${cat}\n${grouped[cat].map((b) => `- ${b}`).join("\n")}`,
+    (cat) => `### ${cat}\n${grouped[cat].map((b) => `- ${b}`).join("\n")}`
   );
 
   return sections.join("\n\n") || "No summarizable changes found.";
