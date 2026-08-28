@@ -13,9 +13,12 @@ function authHeaders() {
  * to whoever's staring at the error in the UI.
  */
 function githubErrorMessage(status, context) {
-  if (status === 404) return `${context}: not found. Check the repo/PR is spelled right and is public (or that your GITHUB_TOKEN has access).`;
-  if (status === 403) return `${context}: rate limited or access denied by GitHub. Add a GITHUB_TOKEN to backend/.env to raise the limit.`;
-  if (status === 401) return `${context}: GitHub rejected the token. Check GITHUB_TOKEN in backend/.env is valid.`;
+  if (status === 404)
+    return `${context}: not found. Check the repo/PR is spelled right and is public (or that your GITHUB_TOKEN has access).`;
+  if (status === 403)
+    return `${context}: rate limited or access denied by GitHub. Add a GITHUB_TOKEN to backend/.env to raise the limit.`;
+  if (status === 401)
+    return `${context}: GitHub rejected the token. Check GITHUB_TOKEN in backend/.env is valid.`;
   return `${context}: GitHub API returned ${status}.`;
 }
 
@@ -24,8 +27,13 @@ function githubErrorMessage(status, context) {
  */
 export function parseRepo(input) {
   const cleaned = input.trim().replace(/\.git$/, "");
-  const match = cleaned.match(/github\.com\/([^/]+)\/([^/]+)/) || cleaned.match(/^([^/]+)\/([^/]+)$/);
-  if (!match) throw new Error("Could not parse a repo from that input. Use 'owner/repo' or a full GitHub URL.");
+  const match =
+    cleaned.match(/github\.com\/([^/]+)\/([^/]+)/) ||
+    cleaned.match(/^([^/]+)\/([^/]+)$/);
+  if (!match)
+    throw new Error(
+      "Could not parse a repo from that input. Use 'owner/repo' or a full GitHub URL.",
+    );
   return { owner: match[1], repo: match[2] };
 }
 
@@ -34,9 +42,29 @@ export function parseRepo(input) {
  * returns { owner, repo, prNumber }. Otherwise returns null.
  */
 export function parsePrUrl(input) {
-  const match = input.trim().match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+  const match = input
+    .trim()
+    .match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
   if (!match) return null;
   return { owner: match[1], repo: match[2], prNumber: Number(match[3]) };
+}
+
+/**
+ * Fetches the PR's own title/body — often more informative than the
+ * underlying commit message(s), especially after squash-merges or
+ * auto-generated commit text.
+ */
+export async function getPrDetails({ owner, repo, prNumber }) {
+  const res = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}`,
+    { headers: authHeaders() },
+  );
+  if (!res.ok)
+    throw new Error(
+      githubErrorMessage(res.status, `PR #${prNumber} in ${owner}/${repo}`),
+    );
+  const data = await res.json();
+  return { title: data.title || "", body: data.body || "" };
 }
 
 /**
@@ -44,12 +72,19 @@ export function parsePrUrl(input) {
  * with getCommitRange()'s output.
  */
 export async function getPrCommits({ owner, repo, prNumber }) {
-  const res = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/commits?per_page=100`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(githubErrorMessage(res.status, `PR #${prNumber} in ${owner}/${repo}`));
+  const res = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/commits?per_page=100`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!res.ok)
+    throw new Error(
+      githubErrorMessage(res.status, `PR #${prNumber} in ${owner}/${repo}`),
+    );
   const commits = await res.json();
-  if (commits.length === 0) throw new Error(`PR #${prNumber} has no commits — nothing to summarize.`);
+  if (commits.length === 0)
+    throw new Error(`PR #${prNumber} has no commits — nothing to summarize.`);
   return commits;
 }
 
@@ -61,23 +96,41 @@ export async function getCommitRange({ owner, repo, since, until = "HEAD" }) {
   let base = since;
 
   if (!base) {
-    const tagsRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/tags`, { headers: authHeaders() });
-    if (!tagsRes.ok) throw new Error(githubErrorMessage(tagsRes.status, `Repo ${owner}/${repo}`));
+    const tagsRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/tags`, {
+      headers: authHeaders(),
+    });
+    if (!tagsRes.ok)
+      throw new Error(
+        githubErrorMessage(tagsRes.status, `Repo ${owner}/${repo}`),
+      );
     const tags = await tagsRes.json();
     if (tags.length > 0) base = tags[0].name;
   }
 
   if (!base) {
     // No tags at all — just grab the last 20 commits.
-    const res = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/commits?per_page=20`, { headers: authHeaders() });
-    if (!res.ok) throw new Error(githubErrorMessage(res.status, `Repo ${owner}/${repo}`));
+    const res = await fetch(
+      `${GITHUB_API}/repos/${owner}/${repo}/commits?per_page=20`,
+      { headers: authHeaders() },
+    );
+    if (!res.ok)
+      throw new Error(githubErrorMessage(res.status, `Repo ${owner}/${repo}`));
     return res.json();
   }
 
-  const compareRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/compare/${base}...${until}`, {
-    headers: authHeaders(),
-  });
-  if (!compareRes.ok) throw new Error(githubErrorMessage(compareRes.status, `Comparing ${base}...${until} in ${owner}/${repo}`));
+  const compareRes = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/compare/${base}...${until}`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!compareRes.ok)
+    throw new Error(
+      githubErrorMessage(
+        compareRes.status,
+        `Comparing ${base}...${until} in ${owner}/${repo}`,
+      ),
+    );
   const compareData = await compareRes.json();
   return compareData.commits || [];
 }
@@ -87,7 +140,10 @@ export async function getCommitRange({ owner, repo, since, until = "HEAD" }) {
  * when the commit message itself is uninformative).
  */
 export async function getCommitDiff({ owner, repo, sha }) {
-  const res = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/commits/${sha}`, { headers: authHeaders() });
+  const res = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/commits/${sha}`,
+    { headers: authHeaders() },
+  );
   if (!res.ok) throw new Error(`Failed to fetch commit ${sha}: ${res.status}`);
   const data = await res.json();
   return {
